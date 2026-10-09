@@ -1126,12 +1126,8 @@ cat("\nFinal four seasons — median annual nests:\n")
 
 print(
   annual[
-    annual$Season >= 2021,
-    c(
-      "Season",
-      "JM_median",
-      "W_median"
-    )
+    annual$Season >= 2022,
+    c("Season", "JM_median", "W_median")
   ],
   row.names = FALSE
 )
@@ -1686,6 +1682,6 @@ for (i in seq_len(nrow(results))) {
 }
 
 cat("\n")
-cat("Current abundance uses fitted seasons 2021-2025 and RI = 3.06.\n")
+cat("Current abundance uses fitted seasons 2022-2025 and RI = 3.06.\n")
 cat("These are NESTING-ONLY estimates; updated historical SSLL ANE has not yet been added back.\n")
 cat("============================================================\n")

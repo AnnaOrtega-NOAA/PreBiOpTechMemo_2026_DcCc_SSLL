@@ -1974,7 +1974,7 @@ make_atl_panel <- function(
     ) +
     
     labs(
-      x = "Annual anticipated interactions",
+      x = "Anticipated annual SSLL interactions (ATL)",
       y = "Probability"
     ) +
     

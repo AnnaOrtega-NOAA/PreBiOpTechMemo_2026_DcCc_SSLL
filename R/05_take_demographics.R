@@ -9,7 +9,7 @@
 # Mean logit(mortality) is constant.
 #
 # Updated PIRO SSLL interactions:
-#   Loggerhead: complete years 2005-2025; 2022/2023 excluded as pending
+#   Loggerhead: complete years 2005-2025; 
 #   Leatherback: complete years 2005-2025
 #
 # These fitted demographic distributions feed the future-take PVA.

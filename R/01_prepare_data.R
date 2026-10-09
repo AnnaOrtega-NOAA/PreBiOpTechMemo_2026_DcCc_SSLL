@@ -640,8 +640,6 @@ write_out(
 #
 # Inspection only.
 #
-# Loggerhead 2022 and 2023 are known to be pending and must not later be
-# interpreted as zero interactions.
 # ==============================================================================
 
 count_years <- seq(
@@ -795,7 +793,6 @@ cat("  - Calculated m_mean from low/high mortality.\n")
 cat("  - PIRO mean column was not used.\n")
 cat("  - Mortality high >1 capped at 1; original retained.\n")
 cat("  - Missing SCL and mortality were NOT imputed.\n")
-cat("  - Loggerhead 2022 and 2023 remain PENDING.\n")
 cat("  - No statistical models were run.\n")
 
 cat("\n============================================================\n")

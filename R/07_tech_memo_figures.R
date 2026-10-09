@@ -511,7 +511,7 @@ p1a <- ggplot() +
 # ==============================================================================
 
 dc_nests_file <- find_output(
-  "update_leatherback_annual_imputed_nests_2001_2024.csv"
+  "update_leatherback_annual_imputed_nests_2001_2025.csv"
 )
 
 dc_nests <- read.csv(
@@ -606,7 +606,7 @@ p1b <- ggplot(
   scale_x_continuous(
     breaks = seq(
       2001,
-      2024,
+      2025,
       3
     ),
     minor_breaks = NULL
@@ -964,7 +964,7 @@ dc_observed <- rowSums(
 # ==============================================================================
 
 dc_fit_file <- find_output(
-  "update_trend_leatherback_MEDIAN_2001_2024.rds"
+  "update_trend_leatherback_MEDIAN_2001_2025.rds"
 )
 
 dc_fit <- readRDS(
@@ -983,7 +983,7 @@ p2b <- plot_trend_fit(
   species = "Western Pacific leatherback",
   x_breaks = seq(
     2000,
-    2024,
+    2025,
     4
   )
 )
@@ -1274,7 +1274,7 @@ cc_updated <- read.csv(
 
 dc_updated <- read.csv(
   find_output(
-    "update_posteriors_leatherback_MEDIAN_2001_2024.csv"
+    "update_posteriors_leatherback_MEDIAN_2001_2025.csv"
   )
 )
 
@@ -1420,7 +1420,7 @@ posterior_compare <- rbind(
     dc_updated,
     species = "Western Pacific leatherback",
     assessment = "2026 update",
-    period = "2001-2024",
+    period = "2001-2025",
     RI = cfg$biology$dc$RI
   )
 )
@@ -1759,17 +1759,6 @@ make_interaction_panel <- function(
       colour = fill_colour,
       linewidth = 0.7,
       width = 0.72
-    ) +
-    
-    geom_text(
-      data = x[!x$complete, ],
-      aes(
-        label = "pending"
-      ),
-      angle = 90,
-      hjust = -0.10,
-      size = 2.6,
-      colour = col_mid
     ) +
     
     scale_x_continuous(
@@ -2214,148 +2203,42 @@ pva_plot_data$Scenario <- factor(
   )
 )
 
-
 # ==============================================================================
 # 38. SPECIES-SPECIFIC PLOTTING FLOORS
 #
-# We preserve every finite negative log value.
-#
-# If the 2.5th percentile is exactly zero, LogL95 is NA.
-# For graphical display only, those NA values are replaced by a floor
-# one full log unit below the smallest finite lower credible bound for
-# that species.
-#
-# The floor therefore adapts to the actual model output rather than
-# arbitrarily stopping at ln(N) = 0.
+# Capping negative log lower bounds at 0 (ln(1) = 0) matches Martin et al. 2020.
 # ==============================================================================
 
-get_pva_plot_floor <- function(
-    data,
-    species
-) {
-  
-  x <- data[
-    data$Species == species,
-  ]
-  
-  finite_lower <- x$LogL95[
-    is.finite(x$LogL95)
-  ]
-  
-  if (length(finite_lower) == 0L) {
-    stop(
-      "No finite lower PVA credible bounds found for ",
-      species,
-      "."
-    )
-  }
-  
-  floor(
-    min(finite_lower)
-  ) - 1
-}
-
-
-cc_pva_floor <- get_pva_plot_floor(
-  pva_plot_data,
-  "North Pacific loggerhead"
-)
-
-dc_pva_floor <- get_pva_plot_floor(
-  pva_plot_data,
-  "Western Pacific leatherback"
-)
-
-
-cat(
-  "Figure 5 loggerhead zero-bound plotting floor: ",
-  cc_pva_floor,
-  "\n",
-  sep = ""
-)
-
-cat(
-  "Figure 5 leatherback zero-bound plotting floor: ",
-  dc_pva_floor,
-  "\n",
-  sep = ""
-)
-
-
-# ------------------------------------------------------------------------------
-# Create plotting-only lower bound
-# ------------------------------------------------------------------------------
-
-pva_plot_data$LogL95_plot <-
-  pva_plot_data$LogL95
-
-
-pva_plot_data$LogL95_plot[
-  pva_plot_data$Species == "North Pacific loggerhead" &
-    !is.finite(pva_plot_data$LogL95_plot)
-] <- cc_pva_floor
-
-
-pva_plot_data$LogL95_plot[
-  pva_plot_data$Species == "Western Pacific leatherback" &
-    !is.finite(pva_plot_data$LogL95_plot)
-] <- dc_pva_floor
-
+# Replace NAs and clip negative log values at 0 for graphical display
+pva_plot_data$LogL95_plot <- pmax(pva_plot_data$LogL95, 0)
+pva_plot_data$LogL95_plot[!is.finite(pva_plot_data$LogL95_plot)] <- 0
 
 # ==============================================================================
 # 39. SPECIES-SPECIFIC Y LIMITS
 #
-# CI and median-only panels for the same species use identical y limits.
+# CI and median-only panels for the same species use identical y limits starting at 0.
 # ==============================================================================
 
 get_pva_y_limits <- function(
     data,
-    species,
-    plot_floor
+    species
 ) {
   
-  x <- data[
-    data$Species == species,
-  ]
+  x <- data[data$Species == species, ]
   
-  upper_values <- c(
-    x$LogU95,
-    x$LogMedian
-  )
-  
-  upper_values <- upper_values[
-    is.finite(upper_values)
-  ]
+  upper_values <- c(x$LogU95, x$LogMedian)
+  upper_values <- upper_values[is.finite(upper_values)]
   
   if (length(upper_values) == 0L) {
-    stop(
-      "No finite upper PVA values found for ",
-      species,
-      "."
-    )
+    stop("No finite upper PVA values found for ", species, ".")
   }
   
-  c(
-    plot_floor,
-    ceiling(
-      max(upper_values)
-    )
-  )
+  # Set lower limit to 0 (ln(1) = 0)
+  c(0, ceiling(max(upper_values)))
 }
 
-
-cc_pva_ylim <- get_pva_y_limits(
-  pva_plot_data,
-  "North Pacific loggerhead",
-  cc_pva_floor
-)
-
-dc_pva_ylim <- get_pva_y_limits(
-  pva_plot_data,
-  "Western Pacific leatherback",
-  dc_pva_floor
-)
-
+cc_pva_ylim <- get_pva_y_limits(pva_plot_data, "North Pacific loggerhead")
+dc_pva_ylim <- get_pva_y_limits(pva_plot_data, "Western Pacific leatherback")
 
 # ==============================================================================
 # 40. PVA PANEL — MEDIAN + 95% CrI

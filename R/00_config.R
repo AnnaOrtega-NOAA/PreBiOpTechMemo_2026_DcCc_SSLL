@@ -77,7 +77,7 @@ cfg <- list(
     # Loggerhead SSLL interactions for these years have not yet been supplied.
     # These MUST NOT be interpreted as zero interactions in the updated
     # analysis.
-    cc_interaction_years_pending = c(2022L, 2023L),
+    cc_interaction_years_pending = integer(0),
     
     # No currently known pending leatherback years.
     dc_interaction_years_pending = integer(0)
@@ -230,9 +230,4 @@ message(
 message(
   "Update: nesting through current endpoints; PIRO SSLL interactions ",
   cfg$update$interaction_start, "-", cfg$update$interaction_end, "."
-)
-message(
-  "Pending loggerhead interaction years: ",
-  paste(cfg$data_status$cc_interaction_years_pending, collapse = ", "),
-  " — these will NOT be treated as zero."
 )

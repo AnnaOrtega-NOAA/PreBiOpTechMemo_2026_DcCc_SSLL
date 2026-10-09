@@ -12,7 +12,6 @@
 #
 # Martin 2020 segmented SSLL ATL is reconstructed for comparison only.
 #
-# Loggerhead 2022/2023 are PENDING and excluded, not treated as zero.
 # ==============================================================================
 
 source("R/00_config.R")
@@ -440,7 +439,6 @@ cat("  Updated ATL = annual CMP fit to complete observed SSLL totals.\n")
 cat("  CMP likelihood evaluated directly in log space.\n")
 cat("  No asymptotic switch at mu = 10 is used.\n")
 cat("  Martin 2020 segmented CMP retained as the comparison ATL.\n")
-cat("  Loggerhead 2022/2023 pending years excluded, not zero.\n")
 cat("  Loggerhead 2011 retained in the annual updated fit.\n")
 cat("  No trend, abundance, historical ANE or PVA method changed.\n")
 cat("============================================================\n")

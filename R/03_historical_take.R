@@ -25,7 +25,7 @@ age_grid <- seq(0, 100, by = 0.01)
 
 trend_end <- c(
   cc = 2025L,
-  dc = 2024L
+  dc = 2025L
 )
 
 species_name <- c(
@@ -699,14 +699,14 @@ min_finite_neff <- function(fit) {
 # ------------------------------------------------------------------------------
 
 cc_file <- file.path(nest_dir, "cc_annual_nesters.csv")
-dc_file <- file.path(out_dir, "update_leatherback_annual_imputed_nests_2001_2024.csv")
+dc_file <- file.path(out_dir, "update_leatherback_annual_imputed_nests_2001_2025.csv")
 cc_ane_file <- file.path(out_dir, "cc_historical_ane_annual_update.csv")
 dc_ane_file <- file.path(out_dir, "dc_historical_ane_annual_update.csv")
 
 cc_obs_fit_file <- file.path(out_dir, "update_trend_loggerhead_1986_2025.rds")
-dc_med_obs_fit_file <- file.path(out_dir, "update_trend_leatherback_MEDIAN_2001_2024.rds")
-dc_low_obs_fit_file <- file.path(out_dir, "update_trend_leatherback_LOW_2001_2024.rds")
-dc_high_obs_fit_file <- file.path(out_dir, "update_trend_leatherback_HIGH_2001_2024.rds")
+dc_med_obs_fit_file <- file.path(out_dir, "update_trend_leatherback_MEDIAN_2001_2025.rds")
+dc_low_obs_fit_file <- file.path(out_dir, "update_trend_leatherback_LOW_2001_2025.rds")
+dc_high_obs_fit_file <- file.path(out_dir, "update_trend_leatherback_HIGH_2001_2025.rds")
 
 required_files <- c(
   cc_file, dc_file, cc_ane_file, dc_ane_file,
@@ -754,7 +754,7 @@ if (!all(dc_needed %in% names(dc_imp))) {
        paste(setdiff(dc_needed, names(dc_imp)), collapse = ", "))
 }
 
-dc_imp <- dc_imp[dc_imp$Season >= 2001 & dc_imp$Season <= 2024, , drop = FALSE]
+dc_imp <- dc_imp[dc_imp$Season >= 2001 & dc_imp$Season <= 2025, , drop = FALSE]
 dc_cf <- cfg$biology$dc$CF
 
 make_dc_branch <- function(branch) {
@@ -788,55 +788,74 @@ if (!all(ane_needed %in% names(dc_ane))) stop("Leatherback ANE file has unexpect
 
 cc_no_take <- cc_obs
 cc_allocation <- data.frame(
-  Year = integer(), ANE = numeric(), allocated = logical()
+  Year = integer(),
+  Target_Year = integer(),
+  ANE = numeric(),
+  allocated = logical(),
+  note = character(),
+  stringsAsFactors = FALSE
 )
 
 for (i in seq_len(nrow(cc_ane))) {
-  yr <- cc_ane$nesting_year[i]
+  yr  <- cc_ane$nesting_year[i]
   ane <- cc_ane$ANE[i]
   if (!is.finite(ane) || ane == 0) next
   
-  row_id <- match(yr, cc_no_take$Year)
+  # Re-route 2020 missing year ANE to 2021
+  target_yr <- if (yr == 2020L) 2021L else yr
+  
+  row_id <- match(target_yr, cc_no_take$Year)
   if (is.na(row_id)) next
   
+  # Base observed beach values from cc_obs to calculate true site proportions
   beach_values <- as.numeric(
     cc_obs[row_id, c("Inakahama", "Maehama", "Yotsusehama")]
   )
   beach_total <- sum(beach_values, na.rm = TRUE)
   
-  # Fully missing nesting year: do not invent beach proportions.
+  # Skip if target year also lacks valid observed nesting data
   if (!is.finite(beach_total) || beach_total <= 0) {
     cc_allocation <- rbind(
       cc_allocation,
-      data.frame(Year = yr, ANE = ane, allocated = FALSE)
+      data.frame(
+        Year = yr,
+        Target_Year = target_yr,
+        ANE = ane,
+        allocated = FALSE,
+        note = "Target year missing beach counts",
+        stringsAsFactors = FALSE
+      )
     )
     next
   }
   
   beach_prop <- beach_values / beach_total
-  observed <- !is.na(beach_values)
-  adjusted <- beach_values
-  adjusted[observed] <- beach_values[observed] + ane * beach_prop[observed]
+  observed   <- !is.na(beach_values)
+  
+  # Pull current values from cc_no_take to accumulate multiple ANE additions (e.g. 2020 + 2021)
+  current_vals <- as.numeric(
+    cc_no_take[row_id, c("Inakahama", "Maehama", "Yotsusehama")]
+  )
+  
+  adjusted <- current_vals
+  adjusted[observed] <- current_vals[observed] + (ane * beach_prop[observed])
   
   cc_no_take[row_id, c("Inakahama", "Maehama", "Yotsusehama")] <- adjusted
   
+  note_str <- if (target_yr != yr) paste0("Allocated to ", target_yr) else "Direct allocation"
+  
   cc_allocation <- rbind(
     cc_allocation,
-    data.frame(Year = yr, ANE = ane, allocated = TRUE)
+    data.frame(
+      Year = yr,
+      Target_Year = target_yr,
+      ANE = ane,
+      allocated = TRUE,
+      note = note_str,
+      stringsAsFactors = FALSE
+    )
   )
 }
-
-write.csv(
-  cc_no_take,
-  file.path(out_dir, "update_loggerhead_NO_SSLL_TAKE_nesting.csv"),
-  row.names = FALSE
-)
-
-write.csv(
-  cc_allocation,
-  file.path(out_dir, "update_loggerhead_historical_ANE_allocation.csv"),
-  row.names = FALSE
-)
 
 # ------------------------------------------------------------------------------
 # Leatherback: use MEDIAN JM/W proportions for all three branches
@@ -1025,17 +1044,17 @@ cc_nt_fit <- run_single_uq(
 
 dc_med_nt_fit <- run_single_uq(
   dc_no_take_med, "Season", c("JM", "W"),
-  "update_trend_leatherback_MEDIAN_NO_SSLL_TAKE_2001_2024"
+  "update_trend_leatherback_MEDIAN_NO_SSLL_TAKE_2001_2025"
 )
 
 dc_low_nt_fit <- run_single_uq(
   dc_no_take_low, "Season", c("JM", "W"),
-  "update_trend_leatherback_LOW_NO_SSLL_TAKE_2001_2024"
+  "update_trend_leatherback_LOW_NO_SSLL_TAKE_2001_2025"
 )
 
 dc_high_nt_fit <- run_single_uq(
   dc_no_take_high, "Season", c("JM", "W"),
-  "update_trend_leatherback_HIGH_NO_SSLL_TAKE_2001_2024"
+  "update_trend_leatherback_HIGH_NO_SSLL_TAKE_2001_2025"
 )
 
 # ------------------------------------------------------------------------------
@@ -1058,13 +1077,13 @@ cc_obs_fit <- make_existing_fit(
   cc_obs_fit_file, 1986:2025, 3, "loggerhead_OBSERVED"
 )
 dc_med_obs_fit <- make_existing_fit(
-  dc_med_obs_fit_file, 2001:2024, 2, "leatherback_MEDIAN_OBSERVED"
+  dc_med_obs_fit_file, 2001:2025, 2, "leatherback_MEDIAN_OBSERVED"
 )
 dc_low_obs_fit <- make_existing_fit(
-  dc_low_obs_fit_file, 2001:2024, 2, "leatherback_LOW_OBSERVED"
+  dc_low_obs_fit_file, 2001:2025, 2, "leatherback_LOW_OBSERVED"
 )
 dc_high_obs_fit <- make_existing_fit(
-  dc_high_obs_fit_file, 2001:2024, 2, "leatherback_HIGH_OBSERVED"
+  dc_high_obs_fit_file, 2001:2025, 2, "leatherback_HIGH_OBSERVED"
 )
 
 # ------------------------------------------------------------------------------
@@ -1255,7 +1274,6 @@ print_result("LEATHERBACK LOW", dc_low_obs_sum, dc_low_nt_sum)
 print_result("LEATHERBACK HIGH", dc_high_obs_sum, dc_high_nt_sum)
 
 cat("IMPORTANT:\n")
-cat("  Loggerhead is PROVISIONAL: 2022 and 2023 SSLL interactions are pending.\n")
 cat("  Pending years were not treated as zero.\n")
 cat("  No future take was applied.\n")
 cat("============================================================\n")

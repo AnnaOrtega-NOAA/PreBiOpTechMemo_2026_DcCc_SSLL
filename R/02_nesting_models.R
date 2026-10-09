@@ -4,7 +4,7 @@
 # Updated nesting population models for the 2026 SSLL Technical Memorandum.
 # Runs, in order:
 #   1) loggerhead trend + current abundance (1986-2025)
-#   2) leatherback monthly imputation (through season 2024)
+#   2) leatherback monthly imputation (through season 2025)
 #   3) leatherback trend + current abundance, median/low/high branches
 #
 # The validated Martin et al. (2020) singleUQ model is written below directly so
@@ -674,14 +674,14 @@ if (!all(required %in% names(dc))) {
 
 dc <- dc[
   dc$Season >= 2001L &
-    dc$Season <= 2024L,
+    dc$Season <= 2025L,
 ]
 
 dc <- dc[
   order(dc$Season, dc$Seq_month),
 ]
 
-seasons <- 2001:2024
+seasons <- 2001:2025
 n_years <- length(seasons)
 
 season_counts <- table(dc$Season)
@@ -690,7 +690,7 @@ if (
   length(season_counts) != n_years ||
   any(season_counts != 12)
 ) {
-  stop("Expected exactly 12 monthly rows for every season 2001-2024.")
+  stop("Expected exactly 12 monthly rows for every season 2001-2025.")
 }
 
 # Martin W series begins in season 2006.
@@ -902,7 +902,7 @@ cat("\n")
 cat("============================================================\n")
 cat("LEATHERBACK 2026 IMPUTATION UPDATE\n")
 cat("============================================================\n")
-cat("Seasons: 2001-2024\n")
+cat("Seasons: 2001-2025\n")
 cat("Monthly rows: ", nrow(y_dc), "\n", sep = "")
 cat(
   "JM observed months: ",
@@ -1112,7 +1112,7 @@ write.csv(
   annual,
   file.path(
     out_dir,
-    "update_leatherback_annual_imputed_nests_2001_2024.csv"
+    "update_leatherback_annual_imputed_nests_2001_2025.csv"
   ),
   row.names = FALSE
 )
@@ -1170,7 +1170,7 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 input_file <- file.path(
   out_dir,
-  "update_leatherback_annual_imputed_nests_2001_2024.csv"
+  "update_leatherback_annual_imputed_nests_2001_2025.csv"
 )
 
 model_file <- file.path(
@@ -1196,8 +1196,8 @@ d <- read.csv(
   stringsAsFactors = FALSE
 )
 
-if (!identical(d$Season, 2001:2024)) {
-  stop("Expected leatherback seasons 2001-2024.")
+if (!identical(d$Season, 2001:2025)) {
+  stop("Expected leatherback seasons 2001-2025.")
 }
 
 CF <- cfg$biology$dc$CF
@@ -1387,7 +1387,7 @@ run_trend <- function(dat, label) {
       paste0(
         "update_trend_leatherback_",
         label,
-        "_2001_2024.rds"
+        "_2001_2025.rds"
       )
     )
   )
@@ -1504,7 +1504,7 @@ run_trend <- function(dat, label) {
       paste0(
         "update_posteriors_leatherback_",
         label,
-        "_2001_2024.csv"
+        "_2001_2025.csv"
       )
     ),
     row.names = FALSE
@@ -1554,7 +1554,7 @@ run_trend <- function(dat, label) {
     branch = toupper(label),
     
     start_season = 2001,
-    end_season = 2024,
+    end_season = 2025,
     
     r_median = r_q[2],
     r_L95 = r_q[1],
@@ -1585,7 +1585,7 @@ cat("\n")
 cat("============================================================\n")
 cat("LEATHERBACK 2026 TREND + ABUNDANCE UPDATE\n")
 cat("============================================================\n")
-cat("Seasons: 2001-2024\n")
+cat("Seasons: 2001-2025\n")
 cat("Clutch frequency: ", CF, "\n", sep = "")
 cat("Remigration interval: ", RI, "\n", sep = "")
 cat("Branches: MEDIAN, LOW, HIGH\n")
@@ -1661,7 +1661,7 @@ for (i in seq_len(nrow(results))) {
   
   cat(
     sprintf(
-      "  2024 annual nesters: %.0f (95%% CI %.0f to %.0f)\n",
+      "  2025 annual nesters: %.0f (95%% CI %.0f to %.0f)\n",
       z$final_annual_nesters_median,
       z$final_annual_nesters_L95,
       z$final_annual_nesters_U95
@@ -1686,6 +1686,6 @@ for (i in seq_len(nrow(results))) {
 }
 
 cat("\n")
-cat("Current abundance uses fitted seasons 2021-2024 and RI = 3.06.\n")
+cat("Current abundance uses fitted seasons 2021-2025 and RI = 3.06.\n")
 cat("These are NESTING-ONLY estimates; updated historical SSLL ANE has not yet been added back.\n")
 cat("============================================================\n")

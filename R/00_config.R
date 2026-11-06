@@ -20,7 +20,7 @@ cfg <- list(
   input_dir = "inputs",
   
   files = list(
-    cc_nesting = "Yakushima_Cc_1985-2025.csv",
+    cc_nesting = "Yakushima_Cc_1985-2025_2020INC.csv",
     dc_nesting = "WestPapua_Dc_1980-2025.csv",
     interactions = "ssll_CcDc_2005-2025.csv"
   ),

@@ -801,8 +801,7 @@ for (i in seq_len(nrow(cc_ane))) {
   ane <- cc_ane$ANE[i]
   if (!is.finite(ane) || ane == 0) next
   
-  # Re-route 2020 missing year ANE to 2021
-  target_yr <- if (yr == 2020L) 2021L else yr
+  target_yr <- yr
   
   row_id <- match(target_yr, cc_no_take$Year)
   if (is.na(row_id)) next

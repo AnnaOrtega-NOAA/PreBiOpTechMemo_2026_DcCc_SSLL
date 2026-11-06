@@ -33,11 +33,11 @@ out <- cfg$output_dirs$update
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
 
 n_sim <- 10000L
-n_y   <- 100L
+n_y   <- 10L               # Changed from 100L to 10L
 seed  <- 132L
 
 thresholds <- c(0.50, 0.25, 0.125)
-horizons   <- c(5L, 10L, 25L, 50L, 100L)
+horizons   <- c(5L, 10L)   # Changed: only 5 and 10 years
 
 
 # ==============================================================================
@@ -162,6 +162,20 @@ bio <- list(
   )
 )
 
+# Append no-trip-limit counterfactual to bio$CC and bio$DC:
+bio$CC$trip_limit <- list(
+  limit = 5,
+  mu    = 0.56,
+  shape = 0.45,
+  p     = 4 / 292
+)
+
+bio$DC$trip_limit <- list(
+  limit = 2,
+  mu    = 0.147,
+  shape = 3.34,
+  p     = 6 / 290
+)
 
 # ==============================================================================
 # 5. HELPERS
@@ -224,6 +238,60 @@ age_from_length <- function(x, g) {
   g$age[idx]
 }
 
+# ==============================================================================
+# CMP PMF GENERATOR (Identical formulation to 04_atl.R)
+# ==============================================================================
+
+cmp_pmf <- function(mu, nu, max_x = 5000L) {
+  x <- 0:max_x
+  lp <- nu * (x * log(mu) - lgamma(x + 1))
+  m <- max(lp)
+  lp <- lp - (m + log(sum(exp(lp - m))))
+  p <- exp(lp)
+  keep <- cumsum(p) < (1 - 1e-12)
+  last <- min(max(which(keep)) + 1L, length(x))
+  data.frame(ATL = x[1:last], probability = p[1:last])
+}
+
+# Rob Ahrens' Imputed 2005-2025 CMP parameters (No Hard Caps counterfactual)
+atl_pmf_nohardcap <- list(
+  CC = cmp_pmf(mu = 15.43, nu = 0.124),
+  DC = cmp_pmf(mu = 7.18,  nu = 0.438)
+)
+
+# ==============================================================================
+# EXCESS INTERACTIONS FROM TRIP LIMIT REMOVAL (Ahrens method)
+# ==============================================================================
+
+sim_excess_interactions <- function(n_years, 
+                                    n_sims, 
+                                    n_trips = 60, 
+                                    limit, 
+                                    mu, 
+                                    shape, 
+                                    p = NULL) {
+  
+  p_below <- pnbinom(limit - 1, mu = mu, size = shape)
+  p_cap   <- if (is.null(p)) (1 - p_below) else p
+  
+  total_cells <- n_years * n_sims
+  nc <- rbinom(total_cells, size = n_trips, prob = p_cap)
+  
+  excess_vec <- integer(total_cells)
+  active_cells <- which(nc > 0)
+  
+  if (length(active_cells) > 0L) {
+    for (idx in active_cells) {
+      k <- nc[idx]
+      u <- runif(k, min = p_below, max = 1)
+      u <- pmin(u, 1 - 1e-12)
+      x <- qnbinom(u, mu = mu, size = shape)
+      excess_vec[idx] <- sum(x - limit)
+    }
+  }
+  
+  matrix(excess_vec, nrow = n_years, ncol = n_sims)
+}
 
 # ==============================================================================
 # 6. FUTURE TAKE
@@ -253,7 +321,7 @@ simulate_future_take <- function(
     )
   } else {
     ATL <- ATL_fixed
-
+    
     if (!all(dim(ATL) == c(n_y, n_sim))) {
       stop(
         "ATL_fixed must have dimensions ",
@@ -261,7 +329,7 @@ simulate_future_take <- function(
       )
     }
   }
-
+  
   if (spp != "CC" && RI_min != 0) {
     stop("RI_min sensitivity is implemented for loggerheads only.")
   }
@@ -413,6 +481,10 @@ project_branch <- function(trend, take_ANE, dynUQ, label) {
 
 set.seed(seed)
 
+# ------------------------------------------------------------------------------
+# SCENARIO A: Fishery as is (trip limits, hard caps)
+# ------------------------------------------------------------------------------
+
 # Separate realizations, matching Martin's separate PVA runs.
 CC_take     <- simulate_future_take("CC", atl_pmf$CC, TD$CC)
 
@@ -420,6 +492,79 @@ DC_take_med <- simulate_future_take("DC", atl_pmf$DC, TD$DC)
 DC_take_low <- simulate_future_take("DC", atl_pmf$DC, TD$DC)
 DC_take_hi  <- simulate_future_take("DC", atl_pmf$DC, TD$DC)
 
+# ------------------------------------------------------------------------------
+# SCENARIO B: NO TRIP LIMITS
+# ------------------------------------------------------------------------------
+
+# 1. Loggerhead excess
+CC_excess_mat <- sim_excess_interactions(
+  n_years = n_y,
+  n_sims  = n_sim,
+  n_trips = 60,
+  limit   = bio$CC$trip_limit$limit,
+  mu      = bio$CC$trip_limit$mu,
+  shape   = bio$CC$trip_limit$shape,
+  p       = bio$CC$trip_limit$p
+)
+
+CC_take_notrip <- simulate_future_take(
+  spp       = "CC",
+  pmf       = atl_pmf$CC,
+  td        = TD$CC,
+  ATL_fixed = CC_take$ATL + CC_excess_mat
+)
+
+# 2. Leatherback excess (Median imputation branch)
+DC_excess_mat <- sim_excess_interactions(
+  n_years = n_y,
+  n_sims  = n_sim,
+  n_trips = 60,
+  limit   = bio$DC$trip_limit$limit,
+  mu      = bio$DC$trip_limit$mu,
+  shape   = bio$DC$trip_limit$shape,
+  p       = bio$DC$trip_limit$p
+)
+
+DC_take_med_notrip <- simulate_future_take(
+  spp       = "DC",
+  pmf       = atl_pmf$DC,
+  td        = TD$DC,
+  ATL_fixed = DC_take_med$ATL + DC_excess_mat
+)
+
+# ------------------------------------------------------------------------------
+# SCENARIO C: NO HARD CAPS (Trip limits active)
+# ------------------------------------------------------------------------------
+
+CC_take_nohardcap <- simulate_future_take(
+  spp = "CC",
+  pmf = atl_pmf_nohardcap$CC,
+  td  = TD$CC
+)
+
+DC_take_med_nohardcap <- simulate_future_take(
+  spp = "DC",
+  pmf = atl_pmf_nohardcap$DC,
+  td  = TD$DC
+)
+
+# ------------------------------------------------------------------------------
+# SCENARIO D: BOTH REMOVED (Neither Hard Caps nor Trip Limits)
+# ------------------------------------------------------------------------------
+
+CC_take_both <- simulate_future_take(
+  spp       = "CC",
+  pmf       = atl_pmf_nohardcap$CC,
+  td        = TD$CC,
+  ATL_fixed = CC_take_nohardcap$ATL + CC_excess_mat
+)
+
+DC_take_med_both <- simulate_future_take(
+  spp       = "DC",
+  pmf       = atl_pmf_nohardcap$DC,
+  td        = TD$DC,
+  ATL_fixed = DC_take_med_nohardcap$ATL + DC_excess_mat
+)
 
 # ==============================================================================
 # 9. RUN PVA
@@ -453,6 +598,50 @@ PVA_DC_HIGH <- project_branch(
   "LEATHERBACK HIGH"
 )
 
+# Scenario B: Project under No Trip Limits
+PVA_CC_NOTRIP <- project_branch(
+  trend    = post$CC,
+  take_ANE = CC_take_notrip$ANE,
+  dynUQ    = FALSE,
+  label    = "LOGGERHEAD NO TRIP LIMITS"
+)
+
+PVA_DC_MEDIAN_NOTRIP <- project_branch(
+  trend    = post$DC_MEDIAN,
+  take_ANE = DC_take_med_notrip$ANE,
+  dynUQ    = TRUE,
+  label    = "LEATHERBACK MEDIAN NO TRIP LIMITS"
+)
+
+# Scenario C: Project under No Hard Caps
+PVA_CC_NOHARDCAP <- project_branch(
+  trend    = post$CC,
+  take_ANE = CC_take_nohardcap$ANE,
+  dynUQ    = FALSE,
+  label    = "LOGGERHEAD NO HARD CAPS"
+)
+
+PVA_DC_MEDIAN_NOHARDCAP <- project_branch(
+  trend    = post$DC_MEDIAN,
+  take_ANE = DC_take_med_nohardcap$ANE,
+  dynUQ    = TRUE,
+  label    = "LEATHERBACK MEDIAN NO HARD CAPS"
+)
+
+# Scenario D: Project under Both Removed
+PVA_CC_BOTH <- project_branch(
+  trend    = post$CC,
+  take_ANE = CC_take_both$ANE,
+  dynUQ    = FALSE,
+  label    = "LOGGERHEAD BOTH REMOVED"
+)
+
+PVA_DC_MEDIAN_BOTH <- project_branch(
+  trend    = post$DC_MEDIAN,
+  take_ANE = DC_take_med_both$ANE,
+  dynUQ    = TRUE,
+  label    = "LEATHERBACK MEDIAN BOTH REMOVED"
+)
 
 # ==============================================================================
 # 10. MARTIN-STYLE EXTINCTION HANDLING
@@ -519,12 +708,10 @@ summarise_thresholds <- function(PVA, species, branch) {
           scenario = scenario,
           horizon = h,
           probability_below = mean(crossed),
-          mean_year = if (h == 100L && length(yrs)) mean(yrs) else NA,
-          median_year = if (h == 100L && length(yrs)) median(yrs) else NA,
-          L95_year = if (h == 100L && length(yrs))
-            unname(quantile(yrs, 0.025)) else NA,
-          U95_year = if (h == 100L && length(yrs))
-            unname(quantile(yrs, 0.975)) else NA
+          mean_year   = if (h == n_y && length(yrs)) mean(yrs) else NA,
+          median_year = if (h == n_y && length(yrs)) median(yrs) else NA,
+          L95_year    = if (h == n_y && length(yrs)) unname(quantile(yrs, 0.025)) else NA,
+          U95_year    = if (h == n_y && length(yrs)) unname(quantile(yrs, 0.975)) else NA
         )
       }
     }
@@ -568,6 +755,33 @@ threshold_differences$difference <-
   threshold_differences$probability_below_take -
   threshold_differences$probability_below_no_take
 
+# Append no-trip-limit runs to threshold summaries
+threshold_results_notrip <- rbind(
+  summarise_thresholds(PVA_CC_NOTRIP, "Loggerhead", "NO_TRIP_LIMITS"),
+  summarise_thresholds(PVA_DC_MEDIAN_NOTRIP, "Leatherback", "NO_TRIP_LIMITS")
+)
+
+# Extract only the TAKE scenarios to compare:
+#   1. Status Quo Take
+#   2. No Trip Limits Take
+#   3. No Take (Zero baseline)
+compare_scenarios <- rbind(
+  subset(threshold_results, scenario == "NO_TAKE" & branch %in% c("PRIMARY", "MEDIAN")),
+  subset(threshold_results, scenario == "TAKE" & branch %in% c("PRIMARY", "MEDIAN")),
+  subset(threshold_results_notrip, scenario == "TAKE")
+)
+
+# Append No Hard Caps runs
+threshold_results_nohardcap <- rbind(
+  summarise_thresholds(PVA_CC_NOHARDCAP, "Loggerhead", "NO_HARD_CAPS"),
+  summarise_thresholds(PVA_DC_MEDIAN_NOHARDCAP, "Leatherback", "NO_HARD_CAPS")
+)
+
+# Append Both Removed runs
+threshold_results_both <- rbind(
+  summarise_thresholds(PVA_CC_BOTH, "Loggerhead", "BOTH_REMOVED"),
+  summarise_thresholds(PVA_DC_MEDIAN_BOTH, "Leatherback", "BOTH_REMOVED")
+)
 
 # ==============================================================================
 # 12. TRAJECTORY SUMMARIES
@@ -691,9 +905,9 @@ PVA_CC_RImin1 <- project_branch(
 
 # Annual realized ANE comparison.
 ane_sensitivity_summary <- function(x, scenario) {
-
+  
   ane <- as.vector(x$ANE)
-
+  
   data.frame(
     scenario = scenario,
     mean = mean(ane),
@@ -867,6 +1081,58 @@ saveRDS(
   file.path(out, "update_PVA_leatherback.rds")
 )
 
+# No-trip-limit Counterfactual
+write.csv(
+  threshold_results_notrip,
+  file.path(out, "update_PVA_threshold_probabilities_NO_TRIP_LIMITS.csv"),
+  row.names = FALSE
+)
+
+saveRDS(
+  list(
+    CC = list(
+      future_take = CC_take_notrip,
+      PVA         = PVA_CC_NOTRIP,
+      excess_mat  = CC_excess_mat
+    ),
+    DC = list(
+      future_take = DC_take_med_notrip,
+      PVA         = PVA_DC_MEDIAN_NOTRIP,
+      excess_mat  = DC_excess_mat
+    )
+  ),
+  file.path(out, "update_PVA_no_trip_limits_scenario.rds")
+)
+
+# Save No Hard Caps artifacts
+write.csv(
+  threshold_results_nohardcap,
+  file.path(out, "update_PVA_threshold_probabilities_NO_HARD_CAPS.csv"),
+  row.names = FALSE
+)
+
+saveRDS(
+  list(
+    CC = list(future_take = CC_take_nohardcap, PVA = PVA_CC_NOHARDCAP),
+    DC = list(future_take = DC_take_med_nohardcap, PVA = PVA_DC_MEDIAN_NOHARDCAP)
+  ),
+  file.path(out, "update_PVA_no_hard_caps_scenario.rds")
+)
+
+# Save Both Removed artifacts
+write.csv(
+  threshold_results_both,
+  file.path(out, "update_PVA_threshold_probabilities_BOTH_REMOVED.csv"),
+  row.names = FALSE
+)
+
+saveRDS(
+  list(
+    CC = list(future_take = CC_take_both, PVA = PVA_CC_BOTH),
+    DC = list(future_take = DC_take_med_both, PVA = PVA_DC_MEDIAN_BOTH)
+  ),
+  file.path(out, "update_PVA_both_removed_scenario.rds")
+)
 
 # ==============================================================================
 # 16. PRINT RESULTS

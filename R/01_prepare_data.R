@@ -353,27 +353,24 @@ s <- tolower(
 
 
 species <- ifelse(
-  
   s %in% c(
     "loggerhead",
     "loggerhead turtle",
     "caretta caretta",
-    "cc"
+    "cc",
+    "unid hs",
+    "unidentified hard shell",
+    "unidentified hardshell"
   ),
-  
   "Loggerhead",
-  
   ifelse(
-    
     s %in% c(
       "leatherback",
       "leatherback turtle",
       "dermochelys coriacea",
       "dc"
     ),
-    
     "Leatherback",
-    
     NA_character_
   )
 )

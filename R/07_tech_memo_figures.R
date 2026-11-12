@@ -1499,7 +1499,11 @@ make_distribution_panel <- function(
   means     <- aggregate(Val ~ Timeframe, data = sub_d, FUN = mean)
   
   ggplot(sub_d, aes(x = Val, fill = Timeframe, colour = Timeframe, linetype = Timeframe)) +
-    geom_density(alpha = 0.22, linewidth = 0.9, adjust = 1.1, trim = TRUE) +
+    # Scale density peak to 1.0 for each group:
+    geom_density(
+      aes(y = after_stat(density / max(density))),
+      alpha = 0.22, linewidth = 0.9, adjust = 1.1, trim = TRUE
+    ) +
     geom_vline(
       data = means,
       aes(xintercept = Val, colour = Timeframe, linetype = Timeframe),
@@ -1510,8 +1514,9 @@ make_distribution_panel <- function(
     scale_colour_manual(values = c("2005–2018" = col_previous, "2005–2025" = update_color)) +
     scale_linetype_manual(values = c("2005–2018" = "dashed", "2005–2025" = "solid")) +
     scale_x_continuous(breaks = x_breaks, limits = x_limits, expand = expansion(mult = c(0.01, 0.02))) +
-    scale_y_continuous(expand = expansion(mult = c(0, 0.08))) +
-    labs(title = panel_title, x = x_label, y = "Density") +
+    # Standardize y-axis across all 4 panels:
+    scale_y_continuous(limits = c(0, 1.05), breaks = seq(0, 1, 0.2), expand = expansion(mult = c(0, 0.02))) +
+    labs(title = panel_title, x = x_label, y = "Relative density") +
     theme_memo() +
     theme(panel.grid.major = element_line(colour = "grey90", linewidth = 0.35))
 }
